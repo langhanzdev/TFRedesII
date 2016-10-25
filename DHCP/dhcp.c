@@ -60,9 +60,13 @@ int main(int argc,char *argv[])
 				ip_h_size =(int) (4*(buff1[14]-0x40)); //em bytes
 				next_p = 14 + ip_h_size;
 
-				if(buff1[next_p+3] == 0x43)
-				printf("DHCP Discover UDP port %x \n",buff1[next_p+3]);
-				
+				if(buff1[next_p+3] == 0x43){
+					if(buff1[next_p+250] == 0x01){
+						printf("DHCP Discover \n",buff1[next_p+3],buff1[next_p+250]);
+					}else{
+						printf("DHCP Request  \n",buff1[next_p+3],buff1[next_p+250]);
+					}
+				}
 			}
 		}
 
