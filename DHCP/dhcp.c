@@ -63,7 +63,25 @@ int main(int argc,char *argv[])
 				if(buff1[next_p+3] == 0x43){
 					if(buff1[next_p+250] == 0x01){
 						printf("DHCP Discover \n",buff1[next_p+3],buff1[next_p+250]);
+
+						printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
+						
+						printf("Host length: %x\n",buff1[next_p+261]);
+
+						printf("Host name: ");
+						int i;
+						for(i=1;i<=buff1[next_p+261];i++){
+							printf("%x:",buff1[next_p+261+i]);
+						}
+						printf("\n");
+						
+						/* NAO PODE SER ASSIM
+						Deve ser feito uma leitura dos campos de opçoes dinamicamente
+						pois eles possuem um identificador */
+
+						printf("-------------------------------\n");
 					}else{
+
 						printf("DHCP Request  \n",buff1[next_p+3],buff1[next_p+250]);
 					}
 				}
