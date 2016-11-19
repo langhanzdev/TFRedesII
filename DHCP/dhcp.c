@@ -58,9 +58,9 @@ extern int errno;
     char opt[28];
 } __attribute__((__packed__));
 
-void sendDHCP(){
+void sendOffer(int acao){
 
-	printf("Sending offer");
+	printf("Sending offer\n");
 	//Variaveis para envio dos pacotes
 	int sockfd,listenfd,connfd;
 	const int on=1;
@@ -83,7 +83,10 @@ void sendDHCP(){
 
 	servaddr.sin_port = htons(67);
 	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = inet_addr("255.255.255.255");
+	if(acao == 0)
+		servaddr.sin_addr.s_addr = inet_addr("255.255.255.255");
+	else
+		servaddr.sin_addr.s_addr = inet_addr("192.168.0.8");
 	struct dhcpmessage dhcpmsg;
 	bzero(&dhcpmsg,sizeof(dhcpmsg));
 	dhcpmsg.op = 1;
@@ -113,7 +116,10 @@ void sendDHCP(){
 	//DHCP Message Type
 	dhcpmsg.opt[0]=53;
 	dhcpmsg.opt[1]=1;
-	dhcpmsg.opt[2]=2;
+	if(acao == 0)
+		dhcpmsg.opt[2]=2;
+	else
+		dhcpmsg.opt[2]=5;
 
 	//DHCP Server Identifier
 	dhcpmsg.opt[3]=54;
@@ -228,48 +234,51 @@ int main(int argc,char *argv[])
 
 	printf("Servidor DHCP iniciado. Recebendo pacotes...\n");
 
-	sendDHCP();	
+	//sendOffer(1);	
 
-	// recepcao de pacotes
-	// while (1) {
-   	// 	recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
+	//recepcao de pacotes
+	while (1) {
+   		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
 		
-	// 	if(buff1[12] == 0x08 && buff1[13] == 0x00){ //IP
+		if(buff1[12] == 0x08 && buff1[13] == 0x00){ //IP
 			
-	// 		if(buff1[23] == 0x11){ //UDP
-	// 			ip_h_size =(int) (4*(buff1[14]-0x40)); //em bytes
-	// 			next_p = 14 + ip_h_size;
+			if(buff1[23] == 0x11){ //UDP
+				ip_h_size =(int) (4*(buff1[14]-0x40)); //em bytes
+				next_p = 14 + ip_h_size;
 
-	// 			if(buff1[next_p+3] == 0x43){
-	// 				if(buff1[next_p+250] == 0x01){
-	// 					printf("DHCP Discover \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
-
-	// 					printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
+				if(buff1[next_p+3] == 0x43){
+					if(buff1[next_p+250] == 0x01){
+						sendOffer(0);
+						printf("DHCP Discover \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
 						
-	// 					printf("Host length: %x\n",buff1[next_p+261]);
-
-	// 					printf("Host name: ");
-	// 					int i;
-	// 					for(i=1;i<=buff1[next_p+261];i++){
-	// 						printf("%x:",buff1[next_p+261+i]);
-	// 					}
-	// 					printf("\n");
+						// printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
 						
-	// 					/* NAO PODE SER ASSIM
-	// 					Deve ser feito uma leitura dos campos de opçoes dinamicamente
-	// 					pois eles possuem um identificador */
+						// printf("Host length: %x\n",buff1[next_p+261]);
 
-	// 					printf("-------------------------------\n");
-	// 				}else{
+						// printf("Host name: ");
+						// int i;
+						// for(i=1;i<=buff1[next_p+261];i++){
+						// 	printf("%x:",buff1[next_p+261+i]);
+						// }
+						printf("\n");
+						
+						/* NAO PODE SER ASSIM
+						Deve ser feito uma leitura dos campos de opçoes dinamicamente
+						pois eles possuem um identificador */
 
-	// 					printf("DHCP Request  \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
-	// 				}
-	// 			}
-	// 		}
-	// 	}
+						printf("-------------------------------\n");
+					}else{
+						if(buff1[next_p+250] == 0x03){
+							sendOffer(1);
+							printf("DHCP Request  \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
+						}
+					}
+				}
+			}
+		}
 
 
-	// }
+	}
 }
 
 
