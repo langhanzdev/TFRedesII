@@ -58,7 +58,7 @@ extern int errno;
     char opt[28];
 } __attribute__((__packed__));
 
-void sendOffer(int acao){
+void sendOffer(int acao, char *mac){
 
 	printf("Sending offer\n");
 	//Variaveis para envio dos pacotes
@@ -86,7 +86,7 @@ void sendOffer(int acao){
 	if(acao == 0)
 		servaddr.sin_addr.s_addr = inet_addr("255.255.255.255");
 	else
-		servaddr.sin_addr.s_addr = inet_addr("192.168.0.8");
+		servaddr.sin_addr.s_addr = inet_addr("255.255.255.255");
 	struct dhcpmessage dhcpmsg;
 	bzero(&dhcpmsg,sizeof(dhcpmsg));
 	dhcpmsg.op = 1;
@@ -98,7 +98,108 @@ void sendOffer(int acao){
 	dhcpmsg.flags = htons(0x8000);
 
 	dhcpmsg.ciaddr = 0;
-	dhcpmsg.yiaddr = inet_addr("192.168.0.8");
+	dhcpmsg.yiaddr = inet_addr("192.168.0.28");
+	dhcpmsg.siaddr = 0;
+	dhcpmsg.giaddr = 0;
+
+	dhcpmsg.chaddr[0] = mac[0];//0x00;
+	dhcpmsg.chaddr[1] = mac[1];//0x1A;
+	dhcpmsg.chaddr[2] = mac[2];//0x80;
+	dhcpmsg.chaddr[3] = mac[3];//0x80;
+	dhcpmsg.chaddr[4] = mac[4];//0x2C;
+	dhcpmsg.chaddr[5] = mac[5];//0xC3;
+	dhcpmsg.magic[0]=99;
+	dhcpmsg.magic[1]=130;
+	dhcpmsg.magic[2]=83;
+	dhcpmsg.magic[3]=99;
+	
+	//DHCP Message Type
+	dhcpmsg.opt[0]=53;
+	dhcpmsg.opt[1]=1;
+	if(acao == 0)
+		dhcpmsg.opt[2]=2;
+	else
+		dhcpmsg.opt[2]=5;
+
+	//DHCP Server Identifier
+	dhcpmsg.opt[3]=54;
+	dhcpmsg.opt[4]=4;
+	dhcpmsg.opt[5]=192;
+	dhcpmsg.opt[6]=168;
+	dhcpmsg.opt[7]=0;
+	dhcpmsg.opt[8]=10;
+
+	//Mascara
+	dhcpmsg.opt[9]=1;
+	dhcpmsg.opt[10]=4;
+	dhcpmsg.opt[11]=255;
+	dhcpmsg.opt[12]=255;
+	dhcpmsg.opt[13]=255;
+	dhcpmsg.opt[14]=0;
+
+	//Router (GateWay)
+	dhcpmsg.opt[15]=3;
+	dhcpmsg.opt[16]=4;
+	dhcpmsg.opt[17]=192;
+	dhcpmsg.opt[18]=168;
+	dhcpmsg.opt[19]=0;
+	dhcpmsg.opt[20]=10;
+
+	//Domain Name Server
+	dhcpmsg.opt[21]=6;
+	dhcpmsg.opt[22]=4;
+	dhcpmsg.opt[23]=192;
+	dhcpmsg.opt[24]=168;
+	dhcpmsg.opt[25]=0;
+	dhcpmsg.opt[26]=10;
+
+	dhcpmsg.opt[27]=255;
+
+
+	if(sendto(sockfd,&dhcpmsg,sizeof(dhcpmsg),0,(struct sockaddr*)&servaddr,sizeof(servaddr)) < 0)
+		printf("sendto\n");
+}
+
+void sendMisto(int acao, char *mac){
+	int sockFd = 0, retValue = 0;
+	char buffer[BUFFER_LEN], dummyBuf[50];
+	struct sockaddr_ll destAddr;
+	short int etherTypeT = htons(0x8200);
+
+	/* Configura MAC Origem e Destino */
+	MacAddress localMac = {0xDC, 0x53, 0x60, 0x13, 0x99, 0x8A};
+	//MacAddress destMac = {mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]};
+	MacAddress destMac = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
+
+	/* Criacao do socket. Todos os pacotes devem ser construidos a partir do protocolo Ethernet. */
+	/* De um "man" para ver os parametros.*/
+	/* htons: converte um short (2-byte) integer para standard network byte order. */
+	if((sockFd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL))) < 0) {
+		printf("Erro na criacao do socket.\n");
+		exit(1);
+	}
+
+	/* Identicacao de qual maquina (MAC) deve receber a mensagem enviada no socket. */
+	destAddr.sll_family = htons(PF_PACKET);
+	destAddr.sll_protocol = htons(ETH_P_ALL);
+	destAddr.sll_halen = 6;
+	destAddr.sll_ifindex = 2;  /* indice da interface pela qual os pacotes serao enviados */
+	memcpy(&(destAddr.sll_addr), destMac, MAC_ADDR_LEN);
+
+	
+
+	struct dhcpmessage dhcpmsg;
+	bzero(&dhcpmsg,sizeof(dhcpmsg));
+	dhcpmsg.op = 1;
+	dhcpmsg.htype = 1;
+	dhcpmsg.hlen = 6;
+	dhcpmsg.hops = 0;
+	dhcpmsg.xid = htonl(1000);
+	dhcpmsg.secs = htons(0);
+	dhcpmsg.flags = htons(0x8000);
+
+	dhcpmsg.ciaddr = 0;
+	dhcpmsg.yiaddr = inet_addr("192.168.0.28");
 	dhcpmsg.siaddr = 0;
 	dhcpmsg.giaddr = 0;
 
@@ -155,9 +256,22 @@ void sendOffer(int acao){
 
 	dhcpmsg.opt[27]=255;
 
+	/* Cabecalho Ethernet */
+	memcpy(buffer, destMac, MAC_ADDR_LEN);
+	memcpy((buffer+MAC_ADDR_LEN), localMac, MAC_ADDR_LEN);
+	memcpy((buffer+(2*MAC_ADDR_LEN)), &(etherTypeT), sizeof(etherTypeT));
 
-	if(sendto(sockfd,&dhcpmsg,sizeof(dhcpmsg),0,(struct sockaddr*)&servaddr,sizeof(servaddr)) < 0)
-		printf("sendto\n");
+	/* Add some data */
+	memcpy((buffer+ETHERTYPE_LEN+(2*MAC_ADDR_LEN)), dummyBuf, 50);
+
+	//while(1) {
+		/* Envia pacotes de 64 bytes */
+		if((retValue = sendto(sockFd, buffer, 64, 0, (struct sockaddr *)&(destAddr), sizeof(struct sockaddr_ll))) < 0) {
+			printf("ERROR! sendto() \n");
+			exit(1);
+		}
+		printf("Send success (%d).\n", retValue);
+	//}
 }
 
 
@@ -235,7 +349,7 @@ int main(int argc,char *argv[])
 	printf("Servidor DHCP iniciado. Recebendo pacotes...\n");
 
 	//sendOffer(1);	
-
+	char mac[6];
 	//recepcao de pacotes
 	while (1) {
    		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
@@ -248,7 +362,13 @@ int main(int argc,char *argv[])
 
 				if(buff1[next_p+3] == 0x43){
 					if(buff1[next_p+250] == 0x01){
-						sendOffer(0);
+						mac[0] = buff1[next_p+254];
+						mac[1] = buff1[next_p+255];
+						mac[2] = buff1[next_p+256];
+						mac[3] = buff1[next_p+257];
+						mac[4] = buff1[next_p+258];
+						mac[5] = buff1[next_p+259];
+						sendOffer(0,mac);
 						printf("DHCP Discover \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
 						
 						// printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
@@ -269,7 +389,8 @@ int main(int argc,char *argv[])
 						printf("-------------------------------\n");
 					}else{
 						if(buff1[next_p+250] == 0x03){
-							sendOffer(1);
+							sendOffer(1,mac);
+							//printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
 							printf("DHCP Request  \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
 						}
 					}
