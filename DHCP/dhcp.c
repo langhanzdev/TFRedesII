@@ -288,7 +288,7 @@ void sendOffer(int acao, char *mac){
      */
  
     //Destination ethernet address
-    memcpy(eth->ether_dhost, ether_aton("a4:02:b9:05:2f:ad"), ETH_ALEN);
+    memcpy(eth->ether_dhost, ether_aton(DestHwaddr), ETH_ALEN);
  
     //Source ethernet address
     memcpy(eth->ether_shost, ether_aton(SourceHwaddr), ETH_ALEN);
@@ -375,12 +375,12 @@ void sendOffer(int acao, char *mac){
  
     //Copy the MAC address from ifreq
     //memcpy(dhcp->chaddr, &ifreq.ifr_addr, ETHER_ADDR_LEN);
-    dhcp->chaddr[0] = 0xa4;//mac[0];//0x48;
-    dhcp->chaddr[1] = 0x02;//mac[1];//0x50;
-    dhcp->chaddr[2] = 0xb9;//mac[2];//0x73;
-    dhcp->chaddr[3] = 0x05;//mac[3];//0x6e;
-    dhcp->chaddr[4] = 0x2f;//mac[4];//0xb1;
-    dhcp->chaddr[5] = 0xad;//mac[5];//0x64;
+    dhcp->chaddr[0] = mac[0];//0x48;
+    dhcp->chaddr[1] = mac[1];//0x50;
+    dhcp->chaddr[2] = mac[2];//0x73;
+    dhcp->chaddr[3] = mac[3];//0x6e;
+    dhcp->chaddr[4] = mac[4];//0xb1;
+    dhcp->chaddr[5] = mac[5];//0x64;
     //Servername must be null "a4:02:b9:05:2f:ad"
     bzero(dhcp->sname, sizeof(dhcp->sname));
     dhcp->sname[0] = 0xff;
@@ -525,6 +525,19 @@ void sendOffer(int acao, char *mac){
     close(sock);
 }
 
+int hex_to_int(char c){
+        int first = c / 16 - 3;
+        int second = c % 16;
+        int result = first*10 + second;
+        if(result > 9) result--;
+        return result;
+}
+
+int hex_to_ascii(char c, char d){
+        int high = hex_to_int(c) * 16;
+        int low = hex_to_int(d);
+        return high+low;
+}
 
 int main(int argc,char *argv[])
 {
@@ -561,21 +574,43 @@ int main(int argc,char *argv[])
    		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
 		
 		if(buff1[12] == 0x08 && buff1[13] == 0x00){ //IP
-			
-			if(buff1[23] == 0x11){ //UDP
-				ip_h_size =(int) (4*(buff1[14]-0x40)); //em bytes
-				next_p = 14 + ip_h_size;
 
-				if(buff1[next_p+3] == 0x43){
-					if(buff1[next_p+250] == 0x01){
-						mac[0] = buff1[next_p+254];
-						mac[1] = buff1[next_p+255];
-						mac[2] = buff1[next_p+256];
-						mac[3] = buff1[next_p+257];
-						mac[4] = buff1[next_p+258];
-						mac[5] = buff1[next_p+259];
+            int ipLength;
+            if(buff1[14] == 0x45){
+                ipLength = (int) (4*(buff1[14]-0x40));
+                //printf("IPv4 %d\n",ipLength);
+            }else{
+                ipLength = 64;
+                //printf("IPv6 %d\n",ipLength);
+            }
+
+            // char ipVersion[2] ;
+            // sprintf(ipVersion,"%x",buff1[14]); 
+			// printf("IPVERSION: %d\n",ipVersion[0]);
+
+            int udp = 14 + ipLength;
+			if(buff1[23] == 0x11){ //UDP
+                int udpLength = udp+5;
+                int pkgLenght = udpLength+ipLength+14;
+				//ip_h_size =(int) (4*(buff1[14]-0x40)); //em bytes
+				next_p = 14 + ipLength;//34
+                //int dhcp = udp + 4;
+				if(buff1[udp+3] == 0x43){ //DHCP  - porta dest
+                    int dhcp = udp+8+1;
+                    printf("SIZE: %d\n",dhcp);
+                    printf(" ______ DHCP _____");
+                    
+                    int macOrigem = dhcp + 245;
+
+					if(buff1[dhcp] == 0x01){
+						mac[0] = buff1[macOrigem];
+						mac[1] = buff1[macOrigem+1];
+						mac[2] = buff1[macOrigem+2];
+						mac[3] = buff1[macOrigem+3];
+						mac[4] = buff1[macOrigem+4];
+						mac[5] = buff1[macOrigem+5];
 						//sendOffer(0,mac);
-						printf("MAC Address Before: %x \n",buff1[next_p+258]);
+						//printf("MAC Address Before: %x \n",buff1[next_p+258]);
 						//printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
 						sendOffer(0,mac);
 						printf("DHCP Discover \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
@@ -591,21 +626,118 @@ int main(int argc,char *argv[])
 						// }
 						printf("\n");
 						
-						/* NAO PODE SER ASSIM
-						Deve ser feito uma leitura dos campos de opçoes dinamicamente
-						pois eles possuem um identificador */
+						
 
 						printf("-------------------------------\n");
 					}else{
-						if(buff1[next_p+250] == 0x03){
+						if(buff1[dhcp] == 0x03){ //next_p+250
 							//sendOffer(1,mac);
 							sendOffer(1,mac);
-							printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
+							//printf("MAC Address: %x:%x:%x:%x:%x:%x \n",buff1[next_p+254],buff1[next_p+255],buff1[next_p+256],buff1[next_p+257],buff1[next_p+258],buff1[next_p+259]);
 							printf("DHCP Request  \n"/*,buff1[next_p+3],buff1[next_p+250]*/);
 						}
 					}
-				}
+				}else{
+                    
+                    if(buff1[udp+3] == 0x35){ //DNS
+                        int dns = udp+8+1;
+                        
+                        char b[2] ;//= hex_to_ascii(0, buff1[next_p+27]);
+                        //printf("hex to char: %x\n",buff1[dns+14]);
+       
+                        // int dom; 
+                        // printf("Dominio: ");
+                        // for(dom=dns+12;(dom<pkgLenght) && !(buff1[dom]==0x00 && buff1[dom+1]==0x01 && buff1[dom+2]==0x00 && buff1[dom+3]==0x01);dom++){
+                        //     if(buff1[dom] >= 0x20){
+                        //         sprintf(b,"%c",buff1[dom]);
+                        //         printf("%s",b);
+                        //     }else{
+                        //         printf(".");
+                        //     }
+                        // }
+                        // printf("\n");
+                        
+                        
+                        
+                        //printf("Historico: %x:%x:%x:%x:%x:%x \n",buff1[next_p+20],buff1[next_p+21],buff1[next_p+22],buff1[next_p+23],buff1[next_p+24],buff1[next_p+25]);
+                    }
+                }
 			}
+            ///here
+            if(buff1[23] == 0x06){//TCP
+            //printf("TCP!!\n");
+            
+            int tcp = 14 + ipLength;
+
+            int tcpLength = (int) (4*(buff1[tcp+12]/0x10));
+            
+            if(buff1[tcp+3] == 0x50){ //HTTP -- porta 80
+                
+                int http = 14 + ipLength + tcpLength;
+                int httpLength = tcp+8+1+buff1[http+12];
+                char b[2] ;//= hex_to_ascii(0, buff1[next_p+27]);
+                //printf("hex to char: %x\n",buff1[dns+14]);
+                if(buff1[http] == 0x47){ //GET
+                    printf("HTTP: %d\n",http);
+                    int dom=0; 
+                    printf("Dominio: ");
+                    int flag = 0;
+
+                    char url[]="char.txt";
+                    char ch;
+                    FILE *arq;
+                    
+                    arq = fopen("char.txt", "a");
+                    if(arq == NULL)
+                        printf("Erro, nao foi possivel abrir o arquivo\n");
+                    // else
+
+                    // do{
+                    //     printf("Caractere: ");
+                    //     ch=getchar();
+                        fflush(stdin);
+                        
+                        //fputc(ch, arq);
+                    
+                    
+                    
+
+
+                    while(flag==0){
+                        for(dom=0;!(buff1[dom] == 0x48 && buff1[dom+1] == 0x6f && buff1[dom+2] == 0x73 && buff1[dom+3] == 0x74);dom++){
+                            //dom2=dom;
+                        }
+                        printf("DOM: %d\n",dom);
+                         for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){
+                            //dom2 = dom2+6;
+                            //printf("h");
+                            sprintf(b,"%c",buff1[dom]);
+                            printf("%s",b);
+                            fputc(buff1[dom], arq);
+                            
+                         }  
+                         flag = 1;   
+                    }
+                    fclose(arq);
+                    // for(dom=0;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){
+                    
+                    //     if((flag==1) || (buff1[dom] == 0x48 && buff1[dom+1] == 0x6f && buff1[dom+2] == 0x73 && buff1[dom+3] == 0x74)){
+                    //         // printf("%x",buff1[dom]);
+                    //         // dom = dom+6;
+                    //         //printf("h");
+                    //         sprintf(b,"%c",buff1[dom]);
+                    //         printf("%s",b);
+                    //         flag = 1;
+                    //     }
+
+                    // }
+                    printf("\n");
+                    
+                }
+                
+                
+                //printf("Historico: %x:%x:%x:%x:%x:%x \n",buff1[next_p+20],buff1[next_p+21],buff1[next_p+22],buff1[next_p+23],buff1[next_p+24],buff1[next_p+25]);
+            }}
 		}
 
 
