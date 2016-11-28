@@ -22,6 +22,7 @@
 #include <linux/if_packet.h> 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <time.h>
 // #include <iostream>
 // #include <fstream>
 
@@ -177,7 +178,89 @@
 typedef unsigned char MacAddress[MAC_ADDR_LEN];
 extern int errno;
 
+char *format(int number){      
+   char    *retorno,
+      ret[100];
+   int    i;
 
+   if (number < 10){
+      sprintf(ret,"0%d",number);
+      retorno = ret;
+      return retorno;
+   }
+   else{
+      sprintf(ret,"%d",number);
+      retorno = ret;
+      return retorno;
+   }
+}      
+
+// funcao que retorna data
+char *data(void){
+
+   int dia,mes,ano;
+   char   var1[100],
+      var2[100],
+      var3[100],
+      var4[100],
+      *dataPtr;
+   struct tm *local;
+   time_t t;
+
+   t = time(NULL);
+   local = localtime(&t);
+
+   dia = local -> tm_mday;
+   mes = local -> tm_mon + 1;
+   ano = local -> tm_year + 1900;
+
+   // por algum motivo precisa converter os valores retornados pelos ponteiros
+   // da funcao em variaveis do tipo char      
+   sprintf(var1,"%s",format(dia));
+   sprintf(var2,"%s",format(mes));
+   sprintf(var3,"%s",format(ano));
+
+   // cria a variavel de retorno dos dados e cria um ponteiro para essa variavel      
+   sprintf(var4,"%s/%s/%s",var1,var2,var3);
+
+   // retorna data no formato dd:MM:yyyy com um ponteiro
+   dataPtr = var4;
+   return dataPtr;
+}
+
+// funcao que retorna hora
+char *hora(void){
+      
+   int   hora,minuto,segundo;
+   char   var1[100],
+      var2[100],
+      var3[100],
+      var5[100],
+      *retorno;
+   struct tm *local;
+   time_t t;
+
+   t = time(NULL);
+   local = localtime(&t);
+      
+   // obtem hora, minuto e segundo e os aloca em uma variavel do tipo inteiro
+   hora   =   local -> tm_hour;
+   minuto   =    local -> tm_min;
+   segundo =   local -> tm_sec;
+   
+   // por algum motivo precisa converter os valores retornados pelos ponteiros
+   // da funcao em variaveis do tipo char
+   sprintf(var1,"%s",format(hora));
+   sprintf(var2,"%s",format(minuto));
+   sprintf(var3,"%s",format(segundo));
+   
+   // cria a variavel de retorno dos dados e cria um ponteiro para essa variavel
+   sprintf(var5,"%s:%s:%s",var1,var2,var3);
+   
+   // retorna hora no formato hh:mm:ss com um ponteiro
+   retorno = var5;
+   return retorno;   
+}
 
   unsigned char buff1[BUFFSIZE]; // buffer de recepcao
 
@@ -574,6 +657,8 @@ int main(int argc,char *argv[])
 	//recepcao de pacotes
 	while (1) {
    		recv(sockd,(char *) &buff1, sizeof(buff1), 0x0);
+
+        
 		
 		if(buff1[12] == 0x08 && buff1[13] == 0x00){ //IP
 
@@ -716,12 +801,31 @@ int main(int argc,char *argv[])
                         }
 
                         if(ipVersion == 4){
-                         fputc(hex_to_int(buff1[14+13]), arq);fputc(0x2e, arq);
-                         fputc(buff1[14+16], arq);fputc(0x2e, arq);
-                         fputc(buff1[14+18], arq);fputc(0x2e, arq);
-                         fputc(buff1[14+20], arq);
-                         fputc(0x7c, arq);
+                            
+                            //Escreve IP
+                            char ipc[8];
+                            sprintf(ipc,"%c%c%c%c",buff1[14+13],buff1[14+14],buff1[14+15],buff1[14+16]);
+                            fputs(&buff1[14+13],arq);
+                            // fputc(buff1[14+13], arq);fputc(0x2e, arq);
+                            // fputc(buff1[14+14], arq);fputc(0x2e, arq);
+                            // fputc(buff1[14+15], arq);fputc(0x2e, arq);
+                            // fputc(buff1[14+16], arq);
+
+                            fputc(0x7c, arq);
+
+                            
                         }
+
+                        //Escreve data e hora
+                        char   data_sistema[100],
+                        hora_sistema[100];
+                        sprintf(data_sistema,"%s%s",data()," ");
+                        sprintf(hora_sistema,"%s",hora());
+                        fputs(data_sistema, arq);
+                        fputs(hora_sistema, arq);
+
+                        fputc(0x7c, arq);
+
                         //printf("DOM: %d\n",dom);
                          for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){                            
                             sprintf(b,"%c",buff1[dom]);
