@@ -22,6 +22,8 @@
 #include <linux/if_packet.h> 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+// #include <iostream>
+// #include <fstream>
 
 #include <netinet/in_systm.h> //tipos de dados
 
@@ -575,13 +577,14 @@ int main(int argc,char *argv[])
 		
 		if(buff1[12] == 0x08 && buff1[13] == 0x00){ //IP
 
+            int ipVersion=0;
             int ipLength;
             if(buff1[14] == 0x45){
                 ipLength = (int) (4*(buff1[14]-0x40));
-                //printf("IPv4 %d\n",ipLength);
+                ipVersion = 4;
             }else{
                 ipLength = 64;
-                //printf("IPv6 %d\n",ipLength);
+                ipVersion = 6;
             }
 
             // char ipVersion[2] ;
@@ -687,37 +690,77 @@ int main(int argc,char *argv[])
                     char ch;
                     FILE *arq;
                     
-                    arq = fopen("char.txt", "a");
+                    arq = fopen("/home/langhanz/Desktop/novo.html", "a");
                     if(arq == NULL)
                         printf("Erro, nao foi possivel abrir o arquivo\n");
-                    // else
-
-                    // do{
-                    //     printf("Caractere: ");
-                    //     ch=getchar();
-                        fflush(stdin);
-                        
-                        //fputc(ch, arq);
                     
                     
-                    
+                    fputc(0x3c, arq);
+                    fputc(0x68, arq);
+                    fputc(0x74, arq);
+                    fputc(0x6d, arq);
+                    fputc(0x6c, arq);
+                    fputc(0x3e, arq);
 
 
                     while(flag==0){
+
+                        fputc(0x3c, arq);//div
+                        fputc(0x64, arq);
+                        fputc(0x69, arq);
+                        fputc(0x76, arq);
+                        fputc(0x3e, arq);
+
                         for(dom=0;!(buff1[dom] == 0x48 && buff1[dom+1] == 0x6f && buff1[dom+2] == 0x73 && buff1[dom+3] == 0x74);dom++){
                             //dom2=dom;
                         }
-                        printf("DOM: %d\n",dom);
-                         for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){
-                            //dom2 = dom2+6;
-                            //printf("h");
+
+                        if(ipVersion == 4){
+                         fputc(hex_to_int(buff1[14+13]), arq);fputc(0x2e, arq);
+                         fputc(buff1[14+16], arq);fputc(0x2e, arq);
+                         fputc(buff1[14+18], arq);fputc(0x2e, arq);
+                         fputc(buff1[14+20], arq);
+                         fputc(0x7c, arq);
+                        }
+                        //printf("DOM: %d\n",dom);
+                         for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){                            
                             sprintf(b,"%c",buff1[dom]);
                             printf("%s",b);
                             fputc(buff1[dom], arq);
-                            
                          }  
+                         
+
+
+                        for(dom=0;!(buff1[dom] == 0x47 && buff1[dom+1] == 0x45 && buff1[dom+2] == 0x54);dom++){
+                                                    //dom2=dom;
+                        }
+                        
+                        dom = dom+4;
+                        for(dom;!(buff1[dom] == 0x20);dom++){                            
+                            sprintf(b,"%c",buff1[dom]);
+                            printf("%s",b);
+                            fputc(buff1[dom], arq);
+                         }  
+
+
+                        fputc(0x3c, arq);// end div
+                        fputc(0x2f, arq);
+                        fputc(0x64, arq);
+                        fputc(0x69, arq);
+                        fputc(0x76, arq);
+                        fputc(0x3e, arq);
                          flag = 1;   
                     }
+
+                        
+                    
+                    fputc(0x3c, arq); // <\html>
+                    fputc(0x2f, arq);
+                    fputc(0x68, arq);
+                    fputc(0x74, arq);
+                    fputc(0x6d, arq);
+                    fputc(0x6c, arq);
+                    fputc(0x3e, arq);
                     fclose(arq);
                     // for(dom=0;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){
                     
